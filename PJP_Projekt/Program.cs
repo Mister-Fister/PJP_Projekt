@@ -8,7 +8,6 @@ namespace PJP_Projekt
     {
         static void Main(string[] args)
         {
-            // načítaj zdrojový kód
             var input = File.ReadAllText("input.txt");
 
             // lexer a parser

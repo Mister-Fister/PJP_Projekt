@@ -69,7 +69,7 @@ namespace PJP_Projekt
                 }
 
                 // automatická konverzia int → float
-                if (varType == Type.Float && rightType == Type.Int)
+                if(varType == Type.Float && rightType == Type.Int)
                 {
                     Types.Put(context, Type.Float);
                     return Type.Float;
