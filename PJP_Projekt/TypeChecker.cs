@@ -3,86 +3,78 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
 using Antlr4.Runtime.Misc;
 using Antlr4.Runtime.Tree;
 
 namespace PJP_Projekt
 {
-    //prechádza strom a kontroluje typy
+    // prechádza strom a kontroluje typy
     public class TypeChecker : PJP_ProjektBaseVisitor<Type>
     {
-        // pamäť premenných: "a" → Int
+        // pamäť premenných
         public SymbolTables SymbolTables { get; } = new SymbolTables();
 
         // typ každého uzlu stromu
-        // napr. uzol "2 + 3" → Int
         public ParseTreeProperty<Type> Types { get; } = new ParseTreeProperty<Type>();
 
-        // keď narazíme na celé číslo napr. 42
-        // → typ je Int
+        // výrazy
         public override Type VisitExpression(PJP_ProjektParser.ExpressionContext context)
         {
+            // INT literál
             if (context.INT() != null)
             {
                 Types.Put(context, Type.Int);
                 return Type.Int;
             }
 
+            // FLOAT literál
             if (context.FLOAT() != null)
             {
                 Types.Put(context, Type.Float);
                 return Type.Float;
             }
 
+            // BOOL literál
             if (context.BOOL() != null)
             {
                 Types.Put(context, Type.Bool);
                 return Type.Bool;
             }
 
+            // STRING literál
             if (context.STRING() != null)
             {
                 Types.Put(context, Type.String);
                 return Type.String;
             }
 
-            // premenná napr. a, myVar
+            // premenná
             if (context.ID() != null && context.GetChild(1)?.GetText() != "=")
             {
-                // zisti typ premennej zo SymbolTable
                 var type = SymbolTables[context.ID().Symbol];
-                //uzol stromu má typ ..
                 Types.Put(context, type);
                 return type;
             }
 
-            // priradenie napr. "a = 5"
+            // priradenie
             if (context.ID() != null && context.GetChild(1)?.GetText() == "=")
             {
-                // zisti typ pravej strany napr. typ "5" → Int
                 var rightType = Visit(context.expression(0));
-
-                // zisti typ premennej zo SymbolTable napr. "a" → Int
                 var varType = SymbolTables[context.ID().Symbol];
 
-                // ak nastala chyba na pravej strane, propaguj chybu
                 if (rightType == Type.Error || varType == Type.Error)
                 {
                     Types.Put(context, Type.Error);
                     return Type.Error;
                 }
 
-                // špeciálny prípad — int sa môže automaticky konvertovať na float
-                // napr. float a; a = 5; → OK, 5 sa konvertuje na 5.0
+                // automatická konverzia int → float
                 if (varType == Type.Float && rightType == Type.Int)
                 {
                     Types.Put(context, Type.Float);
                     return Type.Float;
                 }
 
-                // typy sa musia zhodovať
-                // napr. int a; a = 3.14; → CHYBA
                 if (varType != rightType)
                 {
                     Errors.ReportError(context.ID().Symbol,
@@ -95,8 +87,7 @@ namespace PJP_Projekt
                 return varType;
             }
 
-            // aritmetické operátory: +, -, *, /
-            // I × I → I alebo F × F → F (s automatickou konverziou int → float)
+            // aritmetické operátory + - * /
             if (context.GetChild(1)?.GetText() is "+" or "-" or "*" or "/")
             {
                 var left = Visit(context.expression(0));
@@ -108,7 +99,6 @@ namespace PJP_Projekt
                     return Type.Error;
                 }
 
-                // obidva musia byť int alebo float
                 if ((left != Type.Int && left != Type.Float) ||
                     (right != Type.Int && right != Type.Float))
                 {
@@ -118,7 +108,6 @@ namespace PJP_Projekt
                     return Type.Error;
                 }
 
-                // ak jeden je float → výsledok je float (automatická konverzia)
                 if (left == Type.Float || right == Type.Float)
                 {
                     Types.Put(context, Type.Float);
@@ -129,7 +118,7 @@ namespace PJP_Projekt
                 return Type.Int;
             }
 
-            // modulo: % — iba int × int → int
+            // modulo %
             if (context.GetChild(1)?.GetText() == "%")
             {
                 var left = Visit(context.expression(0));
@@ -153,7 +142,7 @@ namespace PJP_Projekt
                 return Type.Int;
             }
 
-            // && a || — B × B → B
+            // logické && ||
             if (context.GetChild(1)?.GetText() is "&&" or "||")
             {
                 var left = Visit(context.expression(0));
@@ -177,7 +166,7 @@ namespace PJP_Projekt
                 return Type.Bool;
             }
 
-            // ! — B → B (unárny)
+            // logické !
             if (context.GetChild(0)?.GetText() == "!")
             {
                 var operand = Visit(context.expression(0));
@@ -200,7 +189,7 @@ namespace PJP_Projekt
                 return Type.Bool;
             }
 
-            // < a > — int alebo float → bool
+            // relačné < >
             if (context.GetChild(1)?.GetText() is "<" or ">")
             {
                 var left = Visit(context.expression(0));
@@ -225,7 +214,7 @@ namespace PJP_Projekt
                 return Type.Bool;
             }
 
-            // == a != — int, float alebo string → bool
+            // porovnanie == !=
             if (context.GetChild(1)?.GetText() is "==" or "!=")
             {
                 var left = Visit(context.expression(0));
@@ -237,7 +226,6 @@ namespace PJP_Projekt
                     return Type.Error;
                 }
 
-                // typy musia byť rovnaké (alebo int/float kombinácia)
                 if (left != right &&
                     !(left == Type.Int && right == Type.Float) &&
                     !(left == Type.Float && right == Type.Int))
@@ -252,7 +240,7 @@ namespace PJP_Projekt
                 return Type.Bool;
             }
 
-            // konkatenácia reťazcov: . — S × S → S
+            // konkatenácia .
             if (context.GetChild(1)?.GetText() == ".")
             {
                 var left = Visit(context.expression(0));
@@ -276,7 +264,7 @@ namespace PJP_Projekt
                 return Type.String;
             }
 
-            // unárny mínus: - — I → I alebo F → F
+            // unárny mínus
             if (context.GetChild(0)?.GetText() == "-" && context.expression().Length == 1)
             {
                 var operand = Visit(context.expression(0));
@@ -299,7 +287,7 @@ namespace PJP_Projekt
                 return operand;
             }
 
-            // zátvorky: ( expression ) — iba prejdi dovnútra
+            // zátvorky
             if (context.GetChild(0)?.GetText() == "(")
             {
                 var type = Visit(context.expression(0));
@@ -307,19 +295,14 @@ namespace PJP_Projekt
                 return type;
             }
 
-            //hlbšie do stromu
             return VisitChildren(context);
         }
 
-        // keď narazíme na deklaráciu napr. "int a, b, c;"
+        // deklarácia
         public override Type VisitDeclaration(PJP_ProjektParser.DeclarationContext context)
         {
-            // zisti typ z pravidla "type" v gramatike
-            // context.type() → uzol "type" v strome
-            // context.type().GetText() → "int", "float", "bool", "string"
             var typeName = context.type().GetText();
 
-            // string na enum
             Type type = typeName switch
             {
                 "int" => Type.Int,
@@ -331,36 +314,29 @@ namespace PJP_Projekt
 
             foreach (var id in context.ID())
             {
-                // pridaj premennú do SymbolTable
-                // ak už existuje, SymbolTable automaticky zavolá Errors.ReportError
                 SymbolTables.Add(id.Symbol, type);
             }
 
             return type;
         }
 
-        // READ: "read a, b, c;"
-        // iba kontrolujeme že premenné existujú a sú deklarované
+        // read
         public override Type VisitReadStatement(PJP_ProjektParser.ReadStatementContext context)
         {
             foreach (var id in context.ID())
             {
-                // zisti typ premennej zo SymbolTable
-                // ak neexistuje, SymbolTable automaticky zavolá Errors.ReportError
                 // priradenie do _ aby sme sa vyhli chybe "expression cannot be used as statement"
                 var _ = SymbolTables[id.Symbol];
             }
 
-            return Type.Error; // read nevracia zmysluplný typ
+            return Type.Error;
         }
 
-        // WRITE: "write expr1, expr2, ...;"
-        // kontrolujeme typy všetkých výrazov
+        // write
         public override Type VisitWriteStatement(PJP_ProjektParser.WriteStatementContext context)
         {
             foreach (var expr in context.expression())
             {
-                // navštív každý výraz a skontroluj jeho typ
                 var type = Visit(expr);
 
                 if (type == Type.Error)
@@ -369,13 +345,12 @@ namespace PJP_Projekt
                 }
             }
 
-            return Type.Error; // write nevracia zmysluplný typ
+            return Type.Error;
         }
 
-        // IF: "if (condition) statement [else statement]"
+        // if
         public override Type VisitIfStatement(PJP_ProjektParser.IfStatementContext context)
         {
-            // skontroluj podmienku — musí byť bool
             var condType = Visit(context.expression());
 
             if (condType != Type.Bool && condType != Type.Error)
@@ -384,22 +359,19 @@ namespace PJP_Projekt
                     $"Condition in if statement must be bool, got {condType}.");
             }
 
-            // navštív then vetvu
             Visit(context.statement(0));
 
-            // navštív else vetvu ak existuje
             if (context.statement().Length > 1)
             {
                 Visit(context.statement(1));
             }
 
-            return Type.Error; // if nevracia zmysluplný typ
+            return Type.Error;
         }
 
-        // WHILE: "while (condition) statement"
+        // while
         public override Type VisitWhileStatement(PJP_ProjektParser.WhileStatementContext context)
         {
-            // skontroluj podmienku — musí byť bool
             var condType = Visit(context.expression());
 
             if (condType != Type.Bool && condType != Type.Error)
@@ -408,10 +380,9 @@ namespace PJP_Projekt
                     $"Condition in while statement must be bool, got {condType}.");
             }
 
-            // navštív telo cyklu
             Visit(context.statement());
 
-            return Type.Error; // while nevracia zmysluplný typ
+            return Type.Error;
         }
     }
 }

@@ -3,46 +3,33 @@ using System.Collections.Generic;
 
 namespace PJP_Projekt
 {
-    // Interpreter načíta vygenerované stack-based inštrukcie a vykoná ich.
-    // Hlavná pamäť je stack — hodnoty sa kladú (push) a berú (pop) zo stacku.
-    // Premenné sú uložené v slovníku memory (meno → hodnota).
-    // Pre skoky (jmp, fjmp) sa najprv zmapujú všetky labely na čísla riadkov.
-    // Vykonávanie beží v cykle — instruction pointer (ip) ukazuje na aktuálnu inštrukciu.
+    // načíta inštrukcie a vykoná ich na stacku
     public class Interpreter
     {
-        // zásobník — hlavná pamäť pri výpočtoch
+        // zásobník
         private Stack<object> _stack = new Stack<object>();
 
         // premenné: meno → hodnota
         private Dictionary<string, object> _memory = new Dictionary<string, object>();
 
-        // labely: číslo labelu → index riadku v _instructions
+        // labely: číslo → index riadku
         private Dictionary<int, int> _labels = new Dictionary<int, int>();
 
-        // zoznam inštrukcií — každá inštrukcia je pole slov
-        // napr. "push I 42" → ["push", "I", "42"]
+        // inštrukcie: každá je pole slov
         private List<string[]> _instructions = new List<string[]>();
 
         public Interpreter(string code)
         {
-            // rozbi kód na riadky a každý riadok na slová
             foreach (var line in code.Split('\n'))
             {
                 var trimmed = line.Trim();
-
-                // preskočí prázdne riadky
                 if (string.IsNullOrEmpty(trimmed)) continue;
-
                 _instructions.Add(trimmed.Split(' '));
             }
-
-            // zmapuj všetky labely na indexy riadkov
-            // musíme to urobiť pred spustením aby skoky fungovali
             MapLabels();
         }
 
-        // prejde všetky inštrukcie a zapamätá si kde je každý label
-        // napr. "label 3" na riadku 10 → _labels[3] = 10
+        // zapamätaj pozície labelov pred spustením
         private void MapLabels()
         {
             for (int i = 0; i < _instructions.Count; i++)
@@ -55,30 +42,22 @@ namespace PJP_Projekt
             }
         }
 
-        // spustí všetky inštrukcie
         public void Run()
         {
-            // instruction pointer — index aktuálnej inštrukcie
             int ip = 0;
 
             while (ip < _instructions.Count)
             {
                 var instr = _instructions[ip];
-                var op = instr[0]; // názov inštrukcie napr. "push", "add", "save"
+                var op = instr[0];
 
                 switch (op)
                 {
-                    // ── PUSH ──────────────────────────────────────────
-                    // "push I 42" → vlož int 42 na stack
-                    // "push F 3.14" → vlož float 3.14 na stack
-                    // "push B true" → vlož bool true na stack
-                    // "push S "ahoj"" → vlož string "ahoj" na stack
+                    // push — vlož hodnotu na stack
                     case "push":
                         {
                             string type = instr[1];
-
-                            // string môže obsahovať medzery napr. "push S "a b c""
-                            // preto spájame zvyšok poľa
+                            // string môže obsahovať medzery
                             string value = string.Join(" ", instr[2..]);
 
                             switch (type)
@@ -94,21 +73,19 @@ namespace PJP_Projekt
                                     _stack.Push(bool.Parse(value));
                                     break;
                                 case "S":
-                                    // odstráň úvodzovky zo stringu
+                                    // odstráň úvodzovky
                                     _stack.Push(value.Trim('"'));
                                     break;
                             }
                             break;
                         }
 
-                    // ── POP ───────────────────────────────────────────
-                    // vezme hodnotu zo stacku a zahodí ju
+                    // pop — zahoď vrchol stacku
                     case "pop":
                         _stack.Pop();
                         break;
 
-                    // ── LOAD ──────────────────────────────────────────
-                    // "load a" → načítaj hodnotu premennej a na stack
+                    // load — načítaj premennú na stack
                     case "load":
                         {
                             string name = instr[1];
@@ -116,8 +93,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── SAVE ──────────────────────────────────────────
-                    // "save a" → vezmi vrchol stacku a ulož do premennej a
+                    // save — ulož vrchol stacku do premennej
                     case "save":
                         {
                             string name = instr[1];
@@ -125,9 +101,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── ADD ───────────────────────────────────────────
-                    // "add I" → vezmi dve int hodnoty, sčítaj, vlož výsledok
-                    // "add F" → to isté pre float
+                    // add
                     case "add":
                         {
                             var right = _stack.Pop();
@@ -139,8 +113,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── SUB ───────────────────────────────────────────
-                    // "sub I/F" → odčítanie
+                    // sub
                     case "sub":
                         {
                             var right = _stack.Pop();
@@ -152,8 +125,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── MUL ───────────────────────────────────────────
-                    // "mul I/F" → násobenie
+                    // mul
                     case "mul":
                         {
                             var right = _stack.Pop();
@@ -165,8 +137,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── DIV ───────────────────────────────────────────
-                    // "div I/F" → delenie
+                    // div
                     case "div":
                         {
                             var right = _stack.Pop();
@@ -178,8 +149,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── MOD ───────────────────────────────────────────
-                    // "mod" → modulo — iba pre int
+                    // mod — iba int
                     case "mod":
                         {
                             var right = _stack.Pop();
@@ -188,8 +158,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── UMINUS ────────────────────────────────────────
-                    // "uminus I/F" → unárny mínus
+                    // uminus — unárny mínus
                     case "uminus":
                         {
                             var val = _stack.Pop();
@@ -200,8 +169,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── CONCAT ────────────────────────────────────────
-                    // "concat" → spojenie dvoch stringov
+                    // concat — spojenie stringov
                     case "concat":
                         {
                             var right = _stack.Pop().ToString();
@@ -210,8 +178,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── AND ───────────────────────────────────────────
-                    // "and" → logické &&
+                    // and
                     case "and":
                         {
                             var right = (bool)_stack.Pop();
@@ -220,8 +187,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── OR ────────────────────────────────────────────
-                    // "or" → logické ||
+                    // or
                     case "or":
                         {
                             var right = (bool)_stack.Pop();
@@ -230,8 +196,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── NOT ───────────────────────────────────────────
-                    // "not" → logická negácia
+                    // not
                     case "not":
                         {
                             var val = (bool)_stack.Pop();
@@ -239,8 +204,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── GT ────────────────────────────────────────────
-                    // "gt I/F" → väčší ako >
+                    // gt — väčší ako
                     case "gt":
                         {
                             var right = _stack.Pop();
@@ -252,8 +216,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── LT ────────────────────────────────────────────
-                    // "lt I/F" → menší ako 
+                    // lt — menší ako
                     case "lt":
                         {
                             var right = _stack.Pop();
@@ -265,8 +228,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── EQ ────────────────────────────────────────────
-                    // "eq I/F/S" → porovnanie ==
+                    // eq — porovnanie ==
                     case "eq":
                         {
                             var right = _stack.Pop();
@@ -280,8 +242,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── ITOF ──────────────────────────────────────────
-                    // "itof" → konvertuj int na float
+                    // itof — int → float
                     case "itof":
                         {
                             var val = Convert.ToInt32(_stack.Pop());
@@ -289,23 +250,19 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── LABEL ─────────────────────────────────────────
-                    // "label 3" → iba značka miesta, nič nevykoná
+                    // label — iba značka miesta
                     case "label":
                         break;
 
-                    // ── JMP ───────────────────────────────────────────
-                    // "jmp 3" → skoč na label 3
+                    // jmp — skoč na label
                     case "jmp":
                         {
                             int labelNum = int.Parse(instr[1]);
-                            // nastav ip na index labelu — na konci cyklu sa ip++
                             ip = _labels[labelNum];
                             break;
                         }
 
-                    // ── FJMP ──────────────────────────────────────────
-                    // "fjmp 3" → ak false na stacku, skoč na label 3
+                    // fjmp — skoč na label ak false
                     case "fjmp":
                         {
                             var condition = (bool)_stack.Pop();
@@ -317,9 +274,7 @@ namespace PJP_Projekt
                             break;
                         }
 
-                    // ── PRINT ─────────────────────────────────────────
-                    // "print 3" → vezmi 3 hodnoty zo stacku a vypíš ich
-                    // hodnoty sú na stacku v opačnom poradí → musíme obrátiť
+                    // print — vypíš n hodnôt zo stacku
                     case "print":
                         {
                             int count = int.Parse(instr[1]);
@@ -327,17 +282,13 @@ namespace PJP_Projekt
 
                             // pop v opačnom poradí
                             for (int i = count - 1; i >= 0; i--)
-                            {
                                 values[i] = _stack.Pop();
-                            }
 
-                            // vypíš všetky hodnoty za sebou
                             foreach (var val in values)
                             {
                                 if (val is double d)
                                 {
-                                    // float vypíše vždy s desatinnou časťou
-                                    // napr. 10 → "10.0", 1 → "1.0"
+                                    // float vždy s desatinnou časťou
                                     string formatted = d.ToString(
                                         System.Globalization.CultureInfo.InvariantCulture);
                                     if (!formatted.Contains('.'))
@@ -345,19 +296,17 @@ namespace PJP_Projekt
                                     Console.Write(formatted);
                                 }
                                 else if (val is bool b)
-                                    // C# píše True/False — my chceme true/false
+                                    // lowercase true/false
                                     Console.Write(b ? "true" : "false");
                                 else
                                     Console.Write(val);
                             }
 
-                            // po poslednej hodnote nový riadok
                             Console.WriteLine();
                             break;
                         }
 
-                    // ── READ ──────────────────────────────────────────
-                    // "read I/F/S/B" → načítaj hodnotu zo vstupu na stack
+                    // read — načítaj zo vstupu na stack
                     case "read":
                         {
                             string line = Console.ReadLine() ?? "";
@@ -381,7 +330,6 @@ namespace PJP_Projekt
                         }
                 }
 
-                // posuň sa na ďalšiu inštrukciu
                 ip++;
             }
         }
