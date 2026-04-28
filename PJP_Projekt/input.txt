@@ -138,20 +138,51 @@ foreach (var id in context.ID())
 
 
 
+---------------
+
+
 Type.cs
 Array,
 
-PJP_Projekt.g4
-statement
+SymbolTables.cs - pridaj nový slovník
+private Dictionary<string, Type> arrayElementTypes = new Dictionary<string, Type>();
+
+SymbolTables.cs - nahraď existujúcu Add metódu
+public void Add(IToken variable, Type type, Type elementType = Type.Error)
+{
+    var name = variable.Text.Trim();
+    if (memory.ContainsKey(name))
+    {
+        Errors.ReportError(variable, $"Variable '{name}' was already declared");
+    }
+    else
+    {
+        memory.Add(name, type);
+        if (type == Type.Array)
+            arrayElementTypes[name] = elementType;
+    }
+}
+
+SymbolTables.cs - pridaj novú metódu
+public Type GetArrayElementType(IToken variable)
+{
+    var name = variable.Text.Trim();
+    if (arrayElementTypes.ContainsKey(name))
+        return arrayElementTypes[name];
+    return Type.Error;
+}
+
+PJP_Projekt.g4 - pridaj do statement
     | arrayDeclaration
 
+PJP_Projekt.g4 - pridaj nové pravidlo
 arrayDeclaration : type ID '[' INT ']' ';' ;
 
-expression
+PJP_Projekt.g4 - pridaj do expression
     | ID '[' expression ']' '=' expression
     | ID '[' expression ']'
 
-TypeChecker.cs
+TypeChecker.cs - pridaj novú metódu
 public override Type VisitArrayDeclaration(PJP_ProjektParser.ArrayDeclarationContext context)
 {
     var typeName = context.type().GetText();
@@ -163,11 +194,11 @@ public override Type VisitArrayDeclaration(PJP_ProjektParser.ArrayDeclarationCon
         "string" => Type.String,
         _        => Type.Error
     };
-    SymbolTables.Add(context.ID().Symbol, Type.Array);
+    SymbolTables.Add(context.ID().Symbol, Type.Array, type);
     return Type.Error;
 }
 
-VisitExpression
+TypeChecker.cs - pridaj do VisitExpression - zápis do pola
 if (context.ID() != null && context.GetChild(1)?.GetText() == "["
     && context.GetChild(3)?.GetText() == "]"
     && context.GetChild(4)?.GetText() == "=")
@@ -184,6 +215,7 @@ if (context.ID() != null && context.GetChild(1)?.GetText() == "["
     return valueType;
 }
 
+TypeChecker.cs - pridaj do VisitExpression - citanie z pola
 if (context.ID() != null && context.GetChild(1)?.GetText() == "["
     && context.GetChild(3)?.GetText() == "]"
     && context.GetChild(4)?.GetText() != "=")
@@ -195,12 +227,12 @@ if (context.ID() != null && context.GetChild(1)?.GetText() == "["
         Types.Put(context, Type.Error);
         return Type.Error;
     }
-    var arrType = SymbolTables[context.ID().Symbol];
+    var arrType = SymbolTables.GetArrayElementType(context.ID().Symbol);
     Types.Put(context, arrType);
     return arrType;
 }
 
-CodeGenerator.cs
+CodeGenerator.cs - pridaj novu metodu
 public override string VisitArrayDeclaration(PJP_ProjektParser.ArrayDeclarationContext context)
 {
     var size = int.Parse(context.INT().GetText());
@@ -209,7 +241,7 @@ public override string VisitArrayDeclaration(PJP_ProjektParser.ArrayDeclarationC
     return "";
 }
 
-VisitExpression
+CodeGenerator.cs - pridaj do VisitExpression - zapis do pola
 if (context.ID() != null && context.GetChild(1)?.GetText() == "["
     && context.GetChild(3)?.GetText() == "]"
     && context.GetChild(4)?.GetText() == "=")
@@ -221,6 +253,7 @@ if (context.ID() != null && context.GetChild(1)?.GetText() == "["
     return "";
 }
 
+CodeGenerator.cs - pridaj do VisitExpression - citanie z pola
 if (context.ID() != null && context.GetChild(1)?.GetText() == "["
     && context.GetChild(3)?.GetText() == "]"
     && context.GetChild(4)?.GetText() != "=")
@@ -231,7 +264,7 @@ if (context.ID() != null && context.GetChild(1)?.GetText() == "["
     return "";
 }
 
-Interpreter.cs
+Interpreter.cs - pridaj do switch (op) v Run()
 case "newarray":
 {
     int size = Convert.ToInt32(_stack.Pop());
