@@ -8,7 +8,6 @@ namespace PJP_Projekt
     {
         static void Main(string[] args)
         {
-            // ── KROK 1: NAČÍTANIE VSTUPU ──────────────────────
             // načítaj zdrojový kód zo súboru
             var input = File.ReadAllText("input.txt");
 
