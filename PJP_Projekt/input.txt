@@ -136,3 +136,123 @@ foreach (var id in context.ID())
     Emit($"save {id.GetText()}");
 }
 
+
+
+Type.cs
+Array,
+
+PJP_Projekt.g4
+statement
+    | arrayDeclaration
+
+arrayDeclaration : type ID '[' INT ']' ';' ;
+
+expression
+    | ID '[' expression ']' '=' expression
+    | ID '[' expression ']'
+
+TypeChecker.cs
+public override Type VisitArrayDeclaration(PJP_ProjektParser.ArrayDeclarationContext context)
+{
+    var typeName = context.type().GetText();
+    Type type = typeName switch
+    {
+        "int"    => Type.Int,
+        "float"  => Type.Float,
+        "bool"   => Type.Bool,
+        "string" => Type.String,
+        _        => Type.Error
+    };
+    SymbolTables.Add(context.ID().Symbol, Type.Array);
+    return Type.Error;
+}
+
+VisitExpression
+if (context.ID() != null && context.GetChild(1)?.GetText() == "["
+    && context.GetChild(3)?.GetText() == "]"
+    && context.GetChild(4)?.GetText() == "=")
+{
+    var indexType = Visit(context.expression(0));
+    var valueType = Visit(context.expression(1));
+    if (indexType != Type.Int)
+    {
+        Errors.ReportError(context.ID().Symbol, "Array index must be int.");
+        Types.Put(context, Type.Error);
+        return Type.Error;
+    }
+    Types.Put(context, valueType);
+    return valueType;
+}
+
+if (context.ID() != null && context.GetChild(1)?.GetText() == "["
+    && context.GetChild(3)?.GetText() == "]"
+    && context.GetChild(4)?.GetText() != "=")
+{
+    var indexType = Visit(context.expression(0));
+    if (indexType != Type.Int)
+    {
+        Errors.ReportError(context.ID().Symbol, "Array index must be int.");
+        Types.Put(context, Type.Error);
+        return Type.Error;
+    }
+    var arrType = SymbolTables[context.ID().Symbol];
+    Types.Put(context, arrType);
+    return arrType;
+}
+
+CodeGenerator.cs
+public override string VisitArrayDeclaration(PJP_ProjektParser.ArrayDeclarationContext context)
+{
+    var size = int.Parse(context.INT().GetText());
+    Emit($"push I {size}");
+    Emit($"newarray {context.ID().GetText()}");
+    return "";
+}
+
+VisitExpression
+if (context.ID() != null && context.GetChild(1)?.GetText() == "["
+    && context.GetChild(3)?.GetText() == "]"
+    && context.GetChild(4)?.GetText() == "=")
+{
+    Emit($"load {context.ID().GetText()}");
+    Visit(context.expression(0));
+    Visit(context.expression(1));
+    Emit("astore");
+    return "";
+}
+
+if (context.ID() != null && context.GetChild(1)?.GetText() == "["
+    && context.GetChild(3)?.GetText() == "]"
+    && context.GetChild(4)?.GetText() != "=")
+{
+    Emit($"load {context.ID().GetText()}");
+    Visit(context.expression(0));
+    Emit("aload");
+    return "";
+}
+
+Interpreter.cs
+case "newarray":
+{
+    int size = Convert.ToInt32(_stack.Pop());
+    var arr = new object[size];
+    _memory[instr[1]] = arr;
+    break;
+}
+
+case "astore":
+{
+    var value = _stack.Pop();
+    int index = Convert.ToInt32(_stack.Pop());
+    var arr = (object[])_stack.Pop();
+    arr[index] = value;
+    break;
+}
+
+case "aload":
+{
+    int index = Convert.ToInt32(_stack.Pop());
+    var arr = (object[])_stack.Pop();
+    _stack.Push(arr[index]);
+    break;
+}
